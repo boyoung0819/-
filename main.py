@@ -1,7 +1,12 @@
 
 import streamlit as st
+import requests
+from PIL import Image
+from io import BytesIO
+from urllib.parse import quote
+from functools import lru_cache
+import re
 import html
-import random
 
 st.set_page_config(
     page_title="먼작귀 MBTI 도감",
@@ -10,305 +15,557 @@ st.set_page_config(
 )
 
 # -----------------------------
-# 인터넷 이미지 주소
-# 공식 캐릭터 소개 사이트의 이미지
-# -----------------------------
-BASE = "https://www.chiikawaofficial.com"
-
-characters = {
-    "치이카와": {
-        "emoji": "🐹", "no": "001", "color": "#F9DFE6",
-        "image": "https://images.squarespace-cdn.com/content/v1/6670add926f2a64cd00fb0e7/7828ba38-8302-4215-b4e9-2873c2a27ecc/characters%2Bchiikawa%2Bphonetic%2Band%2Bname%2Bcopy.png",
-        "keywords": ["다정함", "섬세함", "조용한 용기"],
-        "desc": "소심하고 걱정이 많지만, 어려운 순간에도 열심히 노력하는 친구예요. 작은 행복을 소중히 여기고 친구들과 함께할 때 힘을 얻어요."
-    },
-    "하치와레": {
-        "emoji": "🐱", "no": "002", "color": "#DCEBFC",
-        "image": None,
-        "keywords": ["긍정", "우정", "표현력"],
-        "desc": "밝고 긍정적인 태도로 친구들을 응원해요. 힘든 상황에서도 좋은 점을 찾으려 하고, 자신의 생각과 감정을 솔직하게 표현해요."
-    },
-    "우사기": {
-        "emoji": "🐰", "no": "003", "color": "#FFF0B8",
-        "image": None,
-        "keywords": ["자유로움", "즉흥성", "엉뚱함"],
-        "desc": "활기차고 예측하기 어려운 행동으로 주변을 놀라게 해요. 자기만의 방식으로 행동하며 틀에 얽매이지 않는 매력을 보여줘요."
-    },
-    "모몽가": {
-        "emoji": "🐿️", "no": "004", "color": "#EBDFFC",
-        "image": None,
-        "keywords": ["자기표현", "개성", "관심"],
-        "desc": "귀여운 모습을 적극적으로 드러내고 원하는 것을 분명하게 표현해요. 장난스럽고 개성이 강한 친구예요."
-    },
-    "쿠리만쥬": {
-        "emoji": "🌰", "no": "005", "color": "#F2E0CF",
-        "image": None,
-        "keywords": ["여유", "차분함", "소소한 행복"],
-        "desc": "차분하게 자신만의 시간을 즐기고 맛있는 음식과 음료를 좋아해요. 주변에 편안한 분위기를 만들어 줘요."
-    },
-    "랏코": {
-        "emoji": "🦦", "no": "006", "color": "#D8E9F7",
-        "image": None,
-        "keywords": ["실력", "책임감", "든든함"],
-        "desc": "실력이 뛰어나고 용감한 사냥꾼이에요. 다른 친구들을 돕고 가르쳐 주는 따뜻함도 가지고 있어요."
-    },
-    "시사": {
-        "emoji": "🦁", "no": "007", "color": "#DDF1DF",
-        "image": None,
-        "keywords": ["성실함", "노력", "배움"],
-        "desc": "열심히 배우고 맡은 일을 성실하게 해내는 친구예요. 꾸준히 성장하려는 모습이 인상적이에요."
-    },
-    "카니(고서점)": {
-        "emoji": "🦀", "no": "008", "color": "#F8DDE4",
-        "image": None,
-        "keywords": ["배려", "다정함", "조용한 취향"],
-        "desc": "책을 좋아하고 다른 사람을 배려하는 다정한 친구예요. 모몽가와도 특별한 관계를 맺고 있어요."
-    },
-    "그 아이": {
-        "emoji": "🌙", "no": "009", "color": "#E7E3F7",
-        "image": None,
-        "keywords": ["신비로움", "복잡한 감정", "독특함"],
-        "desc": "다른 캐릭터들과는 조금 다른 분위기를 지닌 인물이에요. 여러 해석을 떠올리게 하는 신비로운 캐릭터예요."
-    },
-    "데카츠요": {
-        "emoji": "💪", "no": "010", "color": "#F5DFD8",
-        "image": None,
-        "keywords": ["강렬함", "힘", "독특함"],
-        "desc": "강렬한 인상과 독특한 존재감이 특징이에요."
-    },
-    "오데": {
-        "emoji": "🍢", "no": "011", "color": "#F5E5D2",
-        "image": None,
-        "keywords": ["친근함", "느긋함", "개성"],
-        "desc": "독특한 모습과 여유로운 분위기로 기억되는 캐릭터예요."
-    },
-    "키메라": {
-        "emoji": "🌀", "no": "012", "color": "#E6DFF4",
-        "image": None,
-        "keywords": ["변화", "강렬함", "예측 불가"],
-        "desc": "독특한 형태와 신비로운 분위기로 강렬한 인상을 남겨요."
-    },
-    "갑옷씨": {
-        "emoji": "🛡️", "no": "013", "color": "#DCEDE8",
-        "image": None,
-        "keywords": ["실용성", "책임", "도움"],
-        "desc": "일터를 운영하거나 여러 역할을 맡으며 치이카와 세계의 일상을 만들어 가요."
-    },
-    "딱정벌레": {
-        "emoji": "🪲", "no": "014", "color": "#DCE8D7",
-        "image": None,
-        "keywords": ["호기심", "예측 불가", "반전"],
-        "desc": "작고 독특한 모습으로 등장하며 예상하지 못한 변화를 가져오기도 해요."
-    },
-    "고블린": {
-        "emoji": "👾", "no": "015", "color": "#E2E6D8",
-        "image": None,
-        "keywords": ["장난기", "독특함", "변화"],
-        "desc": "개성 있는 모습으로 먼작귀의 세계를 다채롭게 만드는 존재예요."
-    },
-    "파자마 파티즈": {
-        "emoji": "🎤", "no": "016", "color": "#F8DDEE",
-        "image": None,
-        "keywords": ["협동", "표현", "함께하는 즐거움"],
-        "desc": "함께 노래하고 공연하는 그룹이에요. 각자의 개성을 살리면서 힘을 합쳐요."
-    },
-}
-
-mbti_data = {
-    "INTJ": ("전략가", "갑옷씨", "체계적으로 역할을 수행하는 모습에서 계획성과 책임감을 연결했어요.", "큰 그림을 생각하고 목표를 체계적으로 이루려는 편이에요.", "계획 수립과 독립적인 판단"),
-    "INTP": ("논리술사", "그 아이", "신비로운 면을 탐구심과 독창적인 사고에 연결했어요.", "궁금한 것을 깊이 생각하고 새로운 관점으로 바라봐요.", "분석과 창의적인 발상"),
-    "ENTJ": ("통솔자", "랏코", "뛰어난 실력과 다른 친구들을 이끄는 모습에서 리더십을 연결했어요.", "목표를 정하고 적극적으로 일을 추진하는 편이에요.", "결단력과 추진력"),
-    "ENTP": ("변론가", "우사기", "예측할 수 없는 행동과 자유로운 모습을 새로운 시도에 연결했어요.", "새로운 가능성을 탐색하고 틀에 얽매이지 않는 것을 좋아해요.", "순발력과 발상의 전환"),
-    "INFJ": ("옹호자", "카니(고서점)", "책을 좋아하고 다른 사람을 배려하는 모습을 깊은 이해와 연결했어요.", "사람의 마음을 이해하고 중요한 가치를 지키려 해요.", "공감과 통찰력"),
-    "INFP": ("중재자", "치이카와", "섬세한 감정과 작은 행복을 소중히 여기는 모습이 감수성과 어울려요.", "자신의 감정과 신념을 중요하게 여기고 따뜻한 관계를 소중히 여겨요.", "상상력과 배려"),
-    "ENFJ": ("선도자", "하치와레", "친구를 격려하고 긍정적인 분위기를 만드는 모습에서 응원하는 힘을 발견했어요.", "다른 사람을 격려하고 함께 성장하는 데 보람을 느껴요.", "소통과 격려"),
-    "ENFP": ("활동가", "파자마 파티즈", "개성을 표현하고 함께 즐기는 모습이 열정과 잘 어울려요.", "새로운 경험과 다양한 가능성을 좋아해요.", "열정과 창의적인 표현"),
-    "ISTJ": ("현실주의자", "시사", "맡은 일을 성실하게 수행하는 모습에서 책임감과 꾸준함을 연결했어요.", "맡은 일을 꼼꼼하게 해내고 약속을 중요하게 생각해요.", "성실함과 체계적인 실행"),
-    "ISFJ": ("수호자", "카니(고서점)", "다정하고 배려 깊은 모습이 주변을 살피는 성향과 어울려요.", "가까운 사람을 세심하게 챙기고 안정적인 관계를 중요하게 여겨요.", "세심함과 배려"),
-    "ESTJ": ("경영자", "갑옷씨", "일과 업무를 책임지는 역할에서 조직력과 실행력을 연결했어요.", "일을 정리하고 구체적인 계획에 따라 실행해요.", "조직력과 책임감"),
-    "ESFJ": ("집정관", "하치와레", "친구를 돕고 긍정적인 관계를 만드는 모습에서 협력과 친화력을 연결했어요.", "주변 사람과 조화를 이루고 서로 돕는 관계를 소중히 여겨요.", "친화력과 협동심"),
-    "ISTP": ("장인", "쿠리만쥬", "차분하게 자신만의 시간을 즐기는 모습에서 독립적인 분위기를 연결했어요.", "상황을 관찰하고 실용적인 해결책을 찾아요.", "침착함과 실용적인 판단"),
-    "ISFP": ("모험가", "모몽가", "자신만의 개성과 표현 방식을 적극적으로 드러내는 면을 연결했어요.", "자신의 취향과 감성을 소중히 여기고 유연하게 행동해요.", "감각과 자기표현"),
-    "ESTP": ("사업가", "데카츠요", "강렬한 존재감과 활동적인 인상을 행동력에 연결했어요.", "직접 경험하면서 빠르게 상황을 파악하는 편이에요.", "행동력과 상황 대처"),
-    "ESFP": ("연예인", "오데", "독특하고 눈에 띄는 모습에서 개성 있는 표현을 연결했어요.", "현재의 경험을 즐기고 주변과 함께하는 순간을 소중히 여겨요.", "유연함과 생생한 표현"),
-}
-
-# -----------------------------
-# 스타일
+# 디자인
 # -----------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
 .stApp {
-    background: linear-gradient(180deg,#fffaf0,#fff4f7 55%,#f5f3ff);
-    color:#5b4a52;
-    font-family:'Noto Sans KR',sans-serif;
+    background: linear-gradient(
+        135deg, #fff8fb 0%, #f3f8ff 50%, #fffaf0 100%
+    );
 }
-.block-container {max-width:1050px;padding-top:2rem;padding-bottom:3rem;}
-h1,h2,h3 {font-family:'Jua',sans-serif!important;color:#79586a;}
+
+h1, h2, h3 {
+    font-family: 'Jua', sans-serif !important;
+}
+
 .hero {
-    background:rgba(255,255,255,.92);border:2px solid #f0d3dd;
-    border-radius:28px;padding:30px 20px;text-align:center;margin-bottom:24px;
+    padding: 1.5rem;
+    border-radius: 24px;
+    background: rgba(255,255,255,.88);
+    border: 2px solid #f3dce8;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(140,110,130,.08);
 }
-.hero-title {font-family:'Jua',sans-serif;font-size:clamp(30px,5vw,46px);color:#bf7d97;}
-.hero-sub {line-height:1.9;color:#8a727d;margin-top:8px;}
-.section-title {font-family:'Jua',sans-serif;color:#9a6c82;font-size:25px;margin:24px 0 12px;}
-.card {background:white;border:2px solid #edcfda;border-radius:25px;overflow:hidden;margin-bottom:18px;}
-.card-top {padding:12px 17px;background:#f9e6ec;display:flex;justify-content:space-between;color:#8c6275;font-weight:900;}
-.card-body {padding:24px 18px;text-align:center;}
-.avatar {width:155px;height:155px;margin:auto;border-radius:50%;display:flex;justify-content:center;align-items:center;overflow:hidden;border:4px solid white;box-shadow:0 5px 18px #00000012;}
-.avatar img {width:100%;height:100%;object-fit:contain;}
-.char-name {font-family:'Jua',sans-serif;font-size:32px;color:#755466;margin:12px 0 6px;}
-.pill {display:inline-block;padding:6px 12px;margin:3px;border-radius:99px;background:#f9e8ee;color:#96647b;font-size:13px;font-weight:800;}
-.info {background:rgba(255,255,255,.91);border:1px solid #f0dce4;border-radius:19px;padding:18px;line-height:1.85;margin:7px 0;min-height:170px;}
-.stat {background:white;border:1px solid #efdae2;border-radius:17px;text-align:center;padding:16px 8px;}
-.stat-label {color:#9c8490;font-size:13px;}
-.stat-value {font-family:'Jua',sans-serif;color:#a86f88;font-size:21px;margin-top:6px;}
-.stButton>button {background:#d991ab;color:white;border:none;border-radius:14px;font-weight:800;min-height:44px;}
-.stButton>button:hover {background:#bd7894;color:white;border:none;}
-.note {background:#fff3df;padding:16px;border-radius:16px;color:#81694e;font-size:13px;line-height:1.8;}
+
+.profile {
+    background: rgba(255,255,255,.9);
+    padding: 1.2rem;
+    border: 2px solid #e9dff4;
+    border-radius: 22px;
+}
+
+.type-pill {
+    display: inline-block;
+    padding: .35rem .8rem;
+    border-radius: 999px;
+    background: #eee5ff;
+    color: #59427a;
+    font-weight: 700;
+}
+
+.small-note {
+    color: #786b78;
+    font-size: .88rem;
+}
+
+div[data-testid="stMetric"] {
+    background: rgba(255,255,255,.8);
+    padding: 12px;
+    border: 1px solid #f0e4ec;
+    border-radius: 16px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="hero">
-    <div style="font-size:22px">✦ · ˚ ✧ · ˚ ✦</div>
-    <div class="hero-title">🐹 먼작귀 MBTI 도감 🐰</div>
-    <div class="hero-sub">16가지 MBTI와 어울리는 먼작귀 친구를 만나 보세요!</div>
-</div>
-""", unsafe_allow_html=True)
 
-st.markdown('<div class="section-title">📖 나의 MBTI 선택하기</div>', unsafe_allow_html=True)
+# -----------------------------
+# 캐릭터 데이터
+# image_url에 이미지 파일 주소를 직접 넣으면
+# 자동 검색보다 해당 주소를 우선 사용합니다.
+# -----------------------------
+CHARACTERS = {
+    "치이카와": {
+        "emoji": "🐹",
+        "description": "소심하지만 성실하고, 작은 용기를 모아 나아가는 캐릭터.",
+        "image_url": "",
+    },
+    "하치와레": {
+        "emoji": "🐱",
+        "description": "밝고 다정하며, 친구를 응원하는 캐릭터.",
+        "image_url": "",
+    },
+    "우사기": {
+        "emoji": "🐰",
+        "description": "자유분방하고 에너지가 넘치는 캐릭터.",
+        "image_url": "",
+    },
+    "모몽가": {
+        "emoji": "🐿️",
+        "description": "관심받기를 좋아하고 자기표현이 강한 캐릭터.",
+        "image_url": "",
+    },
+    "쿠리만쥬": {
+        "emoji": "🌰",
+        "description": "느긋하게 먹는 것을 즐기는 어른스러운 캐릭터.",
+        "image_url": "",
+    },
+    "랏코": {
+        "emoji": "🦦",
+        "description": "실력이 뛰어나고 믿음직한 선배 같은 캐릭터.",
+        "image_url": "",
+    },
+    "시사": {
+        "emoji": "🦁",
+        "description": "성실하게 배우고 맡은 일을 해내려는 캐릭터.",
+        "image_url": "",
+    },
+    "카니(고서점)": {
+        "emoji": "🦀",
+        "description": "조용하고 섬세한 분위기의 캐릭터.",
+        "image_url": "",
+    },
+    "그 아이": {
+        "emoji": "👀",
+        "description": "독특한 분위기와 예측하기 어려운 면이 있는 캐릭터.",
+        "image_url": "",
+    },
+    "데카츠요": {
+        "emoji": "💪",
+        "description": "강한 존재감과 독특한 행동이 인상적인 캐릭터.",
+        "image_url": "",
+    },
+    "오데": {
+        "emoji": "🎩",
+        "description": "차분하고 개성 있는 분위기의 캐릭터.",
+        "image_url": "",
+    },
+    "키메라": {
+        "emoji": "👾",
+        "description": "독특하고 신비로운 모습의 캐릭터.",
+        "image_url": "",
+    },
+    "갑옷씨": {
+        "emoji": "🛡️",
+        "description": "먼작귀 세계에서 여러 일을 맡아 돕는 캐릭터.",
+        "image_url": "",
+    },
+    "딱정벌레": {
+        "emoji": "🪲",
+        "description": "작고 독특한 모습으로 등장하는 캐릭터.",
+        "image_url": "",
+    },
+    "고블린": {
+        "emoji": "👺",
+        "description": "동굴 등에서 등장하는 개성 있는 캐릭터.",
+        "image_url": "",
+    },
+    "파자마 파티즈": {
+        "emoji": "🎉",
+        "description": "파자마 파티와 관련된 개성 있는 캐릭터들.",
+        "image_url": "",
+    },
+}
 
-left, right = st.columns([3, 1])
-with left:
-    selected = st.selectbox("나의 MBTI", list(mbti_data.keys()), index=7)
-with right:
-    st.write("")
-    st.write("")
-    open_button = st.button("✨ 도감 열기", use_container_width=True)
 
-if "active_mbti" not in st.session_state:
-    st.session_state.active_mbti = "ENFP"
+# -----------------------------
+# MBTI 데이터
+# -----------------------------
+MBTI = {
+    "INTJ": (
+        "갑옷씨", "전략가",
+        "계획을 세우고 효율적인 방법을 찾는 편이에요.",
+        ["장기적인 관점", "체계적인 계획", "독립적인 판단"]
+    ),
+    "INTP": (
+        "그 아이", "논리 탐구가",
+        "호기심이 많고 독특한 방식으로 생각해요.",
+        ["분석적 사고", "새로운 관점", "탐구심"]
+    ),
+    "ENTJ": (
+        "랏코", "통솔자",
+        "목표를 정하고 주도적으로 이끄는 모습과 어울려요.",
+        ["목표 지향", "결단력", "조직력"]
+    ),
+    "ENTP": (
+        "우사기", "변론가",
+        "틀에 얽매이지 않고 즉흥적으로 아이디어를 펼쳐요.",
+        ["재치", "도전 정신", "발상 전환"]
+    ),
+    "INFJ": (
+        "카니(고서점)", "옹호자",
+        "조용히 관찰하며 의미와 마음을 중요하게 여겨요.",
+        ["통찰력", "배려", "가치 중심"]
+    ),
+    "INFP": (
+        "치이카와", "중재자",
+        "섬세한 감정과 진심을 소중히 여겨요.",
+        ["공감", "상상력", "진정성"]
+    ),
+    "ENFJ": (
+        "하치와레", "선도자",
+        "친구를 격려하고 함께 나아가려는 모습과 어울려요.",
+        ["소통", "격려", "협력"]
+    ),
+    "ENFP": (
+        "파자마 파티즈", "활동가",
+        "새로운 경험과 즐거운 교류를 좋아해요.",
+        ["열정", "창의성", "친화력"]
+    ),
+    "ISTJ": (
+        "시사", "현실주의자",
+        "책임감을 가지고 차근차근 배우고 실천해요.",
+        ["성실함", "책임감", "꾸준함"]
+    ),
+    "ISFJ": (
+        "카니(고서점)", "수호자",
+        "세심하게 살피고 조용히 도움을 주는 편이에요.",
+        ["세심함", "신뢰", "헌신"]
+    ),
+    "ESTJ": (
+        "갑옷씨", "경영자",
+        "규칙과 역할을 중시하고 일을 체계적으로 처리해요.",
+        ["실행력", "조직력", "책임감"]
+    ),
+    "ESFJ": (
+        "하치와레", "집정관",
+        "주변 사람들과 조화를 이루고 서로 돕는 것을 중요하게 생각해요.",
+        ["친절함", "협동", "배려"]
+    ),
+    "ISTP": (
+        "쿠리만쥬", "장인",
+        "차분하게 상황을 살피고 실용적인 방법을 찾아요.",
+        ["관찰력", "실용성", "침착함"]
+    ),
+    "ISFP": (
+        "모몽가", "모험가",
+        "자기만의 취향과 순간의 감정을 중요하게 여겨요.",
+        ["감각", "유연함", "개성"]
+    ),
+    "ESTP": (
+        "데카츠요", "사업가",
+        "행동이 빠르고 직접 경험하는 편이에요.",
+        ["대담함", "적응력", "행동력"]
+    ),
+    "ESFP": (
+        "오데", "연예인",
+        "현재의 순간과 개성 있는 표현을 즐겨요.",
+        ["표현력", "활기", "즉흥성"]
+    ),
+}
 
-if open_button:
-    st.session_state.active_mbti = selected
-    st.balloons()
-    st.toast("새로운 먼작귀 도감을 발견했어요!", icon="🎉")
 
-active = st.session_state.active_mbti
-title, char_name, reason, personality, strength = mbti_data[active]
-char = characters[char_name]
-
-def show_character_image(data, width=180):
-    """이미지가 없으면 이모지를 대신 표시"""
-    if data.get("image"):
-        try:
-            st.image(data["image"], width=width)
-            return
-        except Exception:
-            pass
-    st.markdown(
-        f"""<div style="width:{width}px;height:{width}px;border-radius:50%;
-        background:{data['color']};display:flex;align-items:center;
-        justify-content:center;font-size:{int(width*0.48)}px;margin:auto;">
-        {data['emoji']}</div>""",
-        unsafe_allow_html=True,
+# -----------------------------
+# 인터넷 이미지 검색
+# 자동 검색은 검색 사이트의 응답 구조에 따라
+# 실패할 수 있습니다.
+# -----------------------------
+@lru_cache(maxsize=64)
+def find_image_url(character):
+    query = quote(f"Chiikawa {character} character")
+    search_url = (
+        "https://www.google.com/search?tbm=isch&q=" + query
     )
 
-st.markdown('<div class="section-title">💗 나의 대표 캐릭터</div>', unsafe_allow_html=True)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        )
+    }
 
-st.markdown(f"""
-<div class="card">
-  <div class="card-top"><span>CHIIKAWA FRIENDS · CHARACTER BOOK</span><span>No. {char["no"]}</span></div>
-  <div class="card-body">
-    <div style="font-size:13px;color:#a28b98">이미지는 아래에 표시됩니다</div>
-    <div class="char-name">{html.escape(char_name)}</div>
-    <span class="pill">{active}</span><span class="pill">{html.escape(title)}</span>
-    <p style="font-size:16px;font-weight:700;margin-top:15px">{html.escape(" · ".join(char["keywords"]))}</p>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    try:
+        response = requests.get(
+            search_url,
+            headers=headers,
+            timeout=8
+        )
+        response.raise_for_status()
+        page = response.text
 
-show_character_image(char, 180)
-
-c1, c2, c3 = st.columns(3)
-for col, label, value in [
-    (c1, "나의 MBTI", active),
-    (c2, "성격 유형", title),
-    (c3, "도감 번호", f"No. {char['no']}"),
-]:
-    with col:
-        st.markdown(
-            f'<div class="stat"><div class="stat-label">{label}</div>'
-            f'<div class="stat-value">{html.escape(value)}</div></div>',
-            unsafe_allow_html=True,
+        candidates = re.findall(
+            r'https?://[^"\\\s<>]+?\.(?:jpg|jpeg|png|webp)'
+            r'(?:\?[^"\\\s<>]*)?',
+            page,
+            flags=re.I
         )
 
-st.markdown('<div class="section-title">🔎 캐릭터와 MBTI 알아보기</div>', unsafe_allow_html=True)
-a, b = st.columns(2)
+        for url in candidates:
+            url = (
+                url.replace("\\u003d", "=")
+                   .replace("\\u0026", "&")
+                   .replace("&amp;", "&")
+            )
 
-with a:
-    st.markdown('<div class="info">', unsafe_allow_html=True)
-    st.markdown("### 🌷 캐릭터 소개")
-    st.write(char["desc"])
-    st.markdown("**대표 키워드**")
-    st.write(" · ".join(char["keywords"]))
-    st.markdown('</div>', unsafe_allow_html=True)
+            if "gstatic.com" in url or "google.com" in url:
+                continue
 
-with b:
-    st.markdown('<div class="info">', unsafe_allow_html=True)
-    st.markdown(f"### 🧠 {active} · {title}")
+            if url.startswith("http"):
+                return url
+
+    except Exception:
+        pass
+
+    return None
+
+
+# -----------------------------
+# 이미지 다운로드 및 검증
+# -----------------------------
+@lru_cache(maxsize=64)
+def load_image(url):
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8
+        )
+        response.raise_for_status()
+
+        image = Image.open(BytesIO(response.content))
+        image.load()
+
+        return image.convert("RGB")
+
+    except Exception:
+        return None
+
+
+# -----------------------------
+# 캐릭터 이미지 표시
+# -----------------------------
+def show_character(character, custom_url="", width=240):
+    data = CHARACTERS[character]
+
+    url = custom_url.strip()
+
+    if not url:
+        url = data["image_url"].strip()
+
+    if not url:
+        url = find_image_url(character)
+
+    if url:
+        image = load_image(url)
+
+        if image is not None:
+            st.image(
+                image,
+                width=width,
+                caption=character
+            )
+            return
+
+    st.markdown(
+        f"""
+        <div style="
+            width:100%;
+            min-height:180px;
+            background:#ffffff;
+            border:1px dashed #e5d7e7;
+            border-radius:18px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            flex-direction:column;
+            padding:12px;
+            box-sizing:border-box;
+        ">
+            <div style="font-size:76px">{data['emoji']}</div>
+            <div style="font-weight:700;color:#66566b">
+                {html.escape(character)}
+            </div>
+            <div style="
+                font-size:12px;
+                color:#8c7d90;
+                padding:8px;
+                text-align:center;
+            ">
+                사진을 자동으로 불러오지 못했어요.<br>
+                사이드바에서 이미지 URL을 입력해 주세요.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# -----------------------------
+# 상단 제목
+# -----------------------------
+st.markdown(
+    """
+    <div class="hero">
+        <h1>🐹 먼작귀 MBTI 도감 🐰</h1>
+        <p>내 MBTI와 어울리는 먼작귀 캐릭터를 찾아봐요!</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.write("")
+
+
+# -----------------------------
+# 사이드바
+# -----------------------------
+with st.sidebar:
+    st.header("🔎 MBTI 선택")
+
+    selected = st.selectbox(
+        "내 MBTI를 골라 주세요",
+        list(MBTI.keys()),
+        index=5
+    )
+
+    st.markdown("---")
+    st.subheader("🖼️ 사진이 안 보이나요?")
+
+    manual_url = st.text_input(
+        "대표 캐릭터 이미지 URL",
+        placeholder="https://.../character.png"
+    )
+
+    st.caption(
+        "이미지 파일 자체를 열 수 있는 주소를 입력해 주세요. "
+        "웹페이지 주소는 작동하지 않을 수 있어요."
+    )
+
+
+# -----------------------------
+# 선택한 MBTI 프로필
+# -----------------------------
+character, mbti_title, personality, strengths = MBTI[selected]
+char_data = CHARACTERS[character]
+
+left, right = st.columns(
+    [1, 1.45],
+    gap="large"
+)
+
+with left:
+    st.markdown(
+        '<div class="profile">',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f'<div class="type-pill">{selected}</div>',
+        unsafe_allow_html=True
+    )
+
+    st.subheader(f"오늘의 캐릭터: {character}")
+
+    show_character(
+        character,
+        custom_url=manual_url,
+        width=300
+    )
+
+    st.markdown(f"**{char_data['description']}**")
+
+    st.markdown(
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+with right:
+    st.markdown(f"## {selected} · {mbti_title}")
+
     st.write(personality)
-    st.markdown("**이 유형의 강점**")
-    st.write(strength)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="section-title">💌 이 캐릭터가 나와 어울리는 이유</div>', unsafe_allow_html=True)
-st.markdown(f"""
-<div class="info" style="min-height:0">
-  <div style="font-size:23px;text-align:center">✨ {active} × {html.escape(char_name)} ✨</div>
-  <p style="text-align:center;font-size:16px">{html.escape(reason)}</p>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown("### ✨ 어울리는 특징")
 
-st.markdown('<div class="section-title">📚 전체 MBTI 도감</div>', unsafe_allow_html=True)
-filter_type = st.selectbox("도감 필터", ["전체 보기"] + list(mbti_data.keys()))
+    for strength in strengths:
+        st.markdown(f"- {strength}")
 
-types = list(mbti_data.keys()) if filter_type == "전체 보기" else [filter_type]
+    st.info(
+        "이 MBTI 매칭은 재미를 위한 창작 해석이며, "
+        "공식 설정이나 심리검사 결과가 아닙니다."
+    )
+
+    st.markdown("### 🧠 MBTI 간단 설명")
+
+    st.write(
+        "MBTI는 네 가지 선호 지표를 조합한 성격 유형 분류예요. "
+        "유형은 사람을 단정하는 기준이 아니라 자기 이해를 돕는 "
+        "참고 자료로 활용해 주세요."
+    )
+
+
+# -----------------------------
+# 전체 MBTI 도감
+# -----------------------------
+st.divider()
+
+st.markdown("## 📚 16가지 MBTI 전체 도감")
+
+st.caption(
+    "각 카드의 이미지는 인터넷에서 자동으로 불러오기를 시도합니다. "
+    "검색 사이트의 제한이나 이미지 주소에 따라 이모지가 대신 표시될 수 있어요."
+)
+
+types = list(MBTI.keys())
 
 for start in range(0, len(types), 4):
-    cols = st.columns(4)
-    for col, mbti in zip(cols, types[start:start+4]):
-        t, name, _, _, _ = mbti_data[mbti]
-        data = characters[name]
+    cols = st.columns(4, gap="medium")
+
+    for col, mbti in zip(cols, types[start:start + 4]):
+        name, title, desc, _ = MBTI[mbti]
+
         with col:
-            st.markdown(f"""
-            <div style="background:white;border:1px solid #eed9e2;border-radius:18px;
-            padding:13px 8px;text-align:center;margin-bottom:10px;min-height:165px">
-              <div style="font-size:11px;color:#aa8b9b">No. {data["no"]}</div>
-              <div style="font-size:42px;background:{data["color"]};border-radius:50%;
-              width:76px;height:76px;margin:8px auto;display:flex;align-items:center;
-              justify-content:center">{data["emoji"]}</div>
-              <div style="font-weight:900;color:#91647a">{mbti}</div>
-              <div style="font-size:13px;margin-top:4px">{html.escape(name)}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"{mbti} 보기", key=f"view_{mbti}", use_container_width=True):
-                st.session_state.active_mbti = mbti
-                st.rerun()
+            with st.container(border=True):
+                st.markdown(f"**{mbti} · {title}**")
 
-st.markdown("---")
-st.markdown("""
-<div class="note">
-<b>🍮 도감 이용 안내</b><br>
-이 도감은 캐릭터의 특징을 MBTI와 재미로 연결한 팬메이드 콘텐츠예요.
-공식 MBTI 분류가 아니며, 일부 조연의 성격은 창작적 해석을 포함해요.
-</div>
-""", unsafe_allow_html=True)
+                show_character(
+                    name,
+                    custom_url="",
+                    width=180
+                )
 
-st.markdown("""
-<p style="text-align:center;color:#b49ba7;font-size:13px;margin-top:24px">
-made with ♡ · Chiikawa MBTI Friends
-</p>
-""", unsafe_allow_html=True)
+                st.caption(f"캐릭터: {name}")
+
+                st.write(desc)
+
+                if st.button(
+                    "이 유형 보기",
+                    key=f"view_{mbti}",
+                    use_container_width=True
+                ):
+                    st.session_state["selected_mbti"] = mbti
+                    st.rerun()
+
+
+# -----------------------------
+# 도감에서 선택한 유형 안내
+# -----------------------------
+if "selected_mbti" in st.session_state:
+    chosen = st.session_state["selected_mbti"]
+
+    if chosen != selected:
+        st.info(
+            f"도감에서 {chosen} 유형을 선택했어요. "
+            "왼쪽 사이드바에서 해당 MBTI를 선택하면 "
+            "프로필을 확인할 수 있어요."
+        )
+
+
+# -----------------------------
+# 이미지 안내
+# -----------------------------
+st.divider()
+
+st.markdown("### 🛠️ 이미지가 계속 안 뜰 때")
+
+st.write(
+    "일부 검색 사이트는 이미지 자동 수집을 차단하거나 "
+    "검색 결과의 구조를 변경할 수 있어요. "
+    "이 경우 원하는 캐릭터의 이미지 파일 주소를 직접 입력하면 "
+    "해당 사진을 불러오도록 시도합니다."
+)
+
+st.markdown(
+    """
+    <p class="small-note">
+    먼작귀 캐릭터의 이미지와 이름은 각 권리자에게 권리가 있습니다.
+    이 앱은 팬 제작·학습용 예시이며 공식 앱이 아닙니다.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
